@@ -1,0 +1,1345 @@
+<!doctype html>
+<html lang="pl">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet2.css"><!--link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/font-awesome/4.6.1/css/font-awesome.min.css"><link rel="stylesheet" href="css/L.Control.Locate.min.css"-->
+		<link rel="preconnect" href="https://fonts.gstatic.com">
+		<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+		<link rel="stylesheet" href="css/leaflet-search.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        </style>
+		<script src="js/jquery-3.5.1.min.js"></script>
+        <title>Pewność mandatu</title>
+    </head>
+    <body>
+        <div id="map">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script><!--script src="js/L.Control.Locate.min.js"></script-->
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="data/Okregi_7.js"></script>
+		<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+		<script src="js/leaflet.geometryutil.js"></script>
+		<!--script src="https://d3js.org/d3-color.v2.min.js"></script-->
+		<script src="js/d3-color.v2.min.js"></script>
+		<!--script src="https://d3js.org/d3-interpolate.v2.min.js"></script-->
+		<script src="js/d3-interpolate.v2.min.js"></script>
+		<script src="js/d3-scale-chromatic.min.js"></script>
+		<script src="js/leaflet-search.src.js"></script>
+        <script>
+		
+		
+		var sc, sc_temp;
+		
+		var bounds_group = new L.featureGroup([]);
+		var layers = [];
+		var current_KOD = 21;
+		
+        /*function setBounds() {
+        }*/
+		
+		/*map.on('zoomstart', function (e){
+			var zoomLevel = map.getZoom();
+			//var tooltip = $('.leaflet-tooltip');
+
+			return zoomLevel+2;
+		});*/
+		
+		function lengthToZerous(number) {
+			/*var ntext1 = "";
+			var length = number.toString().length;
+			for (i=0; i<3-length; i++){
+				ntext1 = ntext1;
+			}
+			return ntext1;*/
+			if (number>=100) return Autolinker.link(String(number));
+			if (number >=10) return "0"+ Autolinker.link(String(number));
+			if (number < 10) return "00"+ Autolinker.link(String(number));
+		}
+		
+		
+		function numberWithSpaces(x) {
+			return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "&nbsp;");
+		}
+		
+		function lengthToBlank(number) {
+			var ntext = "";
+			var length = number.toString().length;
+			for (i=0; i<6-length; i++){
+				ntext = ntext + "&#8199;";
+			}
+			if (length<4) ntext = ntext + "&nbsp;";
+			return ntext;
+		}
+		
+		function lengthToBlank1(number) {
+			var ntext = "";
+			var length = number.toString().length;
+			for (i=0; i<5-length; i++){
+				ntext = ntext + "&#8199;";
+			}
+			if (length<4) ntext = ntext + "&nbsp;";
+			return ntext;
+		}
+		
+		function lengthToBlank2(number) {
+			var ntext = "";
+			var length = number.toFixed(2).toString().length;
+			for (i=0; i<5-length; i++){
+				ntext = ntext + "&#8199;";
+			}
+			/*if (length<4) ntext = ntext + "&#8199;";*/
+			return ntext;
+		}
+		
+		function lengthToBlankX(number, ws) {
+			var ntext = "";
+			var length = number.toFixed(2).toString().length;
+			for (i=0; i<ws-length; i++){
+				ntext = ntext + "&#8199;";
+			}
+			/*if (length<4) ntext = ntext + "&#8199;";*/
+			return ntext;
+		}
+		
+		function lengthToBlank3(number) {
+			var ntext = "";
+			var length = number.toString().length;
+			for (i=0; i<7-length; i++){
+				ntext = ntext + "&#8199;";
+			}
+			/*if (length<4) ntext = ntext + "&#8199;";*/
+			if (length<7) ntext = ntext + "&nbsp;";
+			return ntext;
+			
+		}
+		
+		function voteWr(x){
+			if(x%100>10 && x%100<20){
+				return "głosów";
+			}
+			if(x%10>1 && x%10<5){
+				return "głosy";
+			}else{
+				return "głosów";
+			}
+		}
+		
+		function fillRow(feature, layer, _x){
+			var p = layer.feature.properties;
+			var text = [''];
+			var dmp_arr = [];
+			var dmm_arr = [];
+			var i, iter;
+			var gain, loss;
+			var gain_descr, loss_descr;
+			p['Sejm_2023_p8']>0?iter=6:iter=5;
+			var tabl = [0,1,2,5,6,7,8];
+			for (i=1; i<iter+1; i++){
+				if (i!=_x){
+					dmp_arr.push(p['dmp'+_x+'_'+i+'']);
+					dmm_arr.push(p['dmm'+_x+'_'+i+'']);
+				}else{
+					dmp_arr.push(10000000000000000000);
+					dmm_arr.push(10000000000000000000);
+				}
+			}
+			var dmp_ind = dmp_arr.indexOf(Math.min(...dmp_arr))+1;
+			var dmm_ind = dmm_arr.indexOf(Math.min(...dmm_arr))+1;
+			for (i=1; i<iter+1; i++){
+				if (i==_x){
+					text.push('<td style="background-color: gray; border-radius: 4px;"></td>');
+				}else{
+					if (p['dmp'+_x+'_'+i+'']<p['Sejm_2023_'+tabl[i]+'']){
+					
+						gain = '<span'+((p['dmp'+_x+'_'+i+'']==Math.min(...dmp_arr))?' style = "font-weight: 900; text-decoration: underline 3px; text-decoration-skip-ink: none;"':'')+'>+' +(p['dmp'+_x+'_'+i+'']/p['Sejm_2023_SUMA']*100).toFixed(2) + ' p.p.</span> \
+								<img src="images/'+p['nrp'+_x+'_'+i+'']+'.jpg" alt ="Partia"  class="Logo6" style="border-color: red;"/><br>';
+								
+						gain_descr = 'Komitet <img img style="vertical-align: middle; display: inline; float: none;" src="images/'+_x+'.jpg" alt ="Partia"  	class="Logo5"/> odbierając komitetowi&nbsp;<img style="vertical-align: middle; display: inline; float: none;" src="images/'+i+'.jpg" alt ="Partia"  class="Logo5"/> <span style="color:green; font-weight:700; text-shadow:  rgba(255, 255, 255, 1.0) 1px 0px 2px, rgba(255, 255, 255, 1.0) 0.540302px 0.841471px 2px, rgba(255, 255, 255, 1.0) -0.416147px 0.909297px 2px, rgba(255, 255, 255, 1.0) -0.989991px 0.14112px 2px, rgba(255, 255, 255, 1.0) -0.653641px -0.756801px 2px, rgba(255, 255, 255, 1.0) 0.283662px -0.958921px 2px, rgba(255, 255, 255, 1.0) 0.96017px -0.279411px 2px;">' +     numberWithSpaces(p['dmp'+_x+'_'+i+''])+'</span>&nbsp;'+voteWr(p['dmp'+_x+'_'+i+''])+' (<span style="color:green; font-weight:700;  text-shadow:  rgba(255, 255, 255, 1.0) 1px 0px 2px, rgba(255, 255, 255, 1.0) 0.540302px 0.841471px 2px, rgba(255, 255, 255, 1.0) -0.416147px 0.909297px 2px, rgba(255, 255, 255, 1.0) -0.989991px 0.14112px 2px, rgba(255, 255, 255, 1.0) -0.653641px -0.756801px 2px, rgba(255, 255, 255, 1.0) 0.283662px -0.958921px 2px, rgba(255, 255, 255, 1.0) 0.96017px -0.279411px 2px;">' +(p['dmp'+_x+'_'+i+'']/p['Sejm_2023_SUMA']*100).toFixed(2) + '&nbsp;p.p.</span>) zyskuje mandat kosztem komitetu <img style="vertical-align: middle; display: inline; float: none;" src="images/'+p['nrp'+_x+'_'+i+'']+'.jpg" alt ="Partia"  class="Logo5"/>.';
+						
+					}else{
+					
+						gain = '<span>&mdash;</span><br>';
+						
+						gain_descr = 'Komitet <img img style="vertical-align: middle; display: inline; float: none;" src="images/'+_x+'.jpg" alt ="Partia"  class="Logo5"/> by zyskać mandat potrzebuje odebrać komitetowi&nbsp;<img style="vertical-align: middle; display: inline; float: none;" src="images/'+i+'.jpg" alt ="Partia"  class="Logo5"/> ' +  numberWithSpaces(p['dmp'+_x+'_'+i+''])+'&nbsp;'+voteWr(p['dmp'+_x+'_'+i+''])+' (' +(p['dmp'+_x+'_'+i+'']/p['Sejm_2023_SUMA']*100).toFixed(2) + '&nbsp;p.p.). Komitet <img style="vertical-align: middle; display: inline; float: none;" src="images/'+i+'.jpg" alt ="Partia"  class="Logo5"/> zdobył jednak jedynie ' + numberWithSpaces(p['Sejm_2023_'+tabl[i]+''])+'&nbsp;' +voteWr(p['Sejm_2023_'+tabl[i]+''])+'.';
+						
+					}
+					if (p['Sejm_2023_m'+tabl[_x]+'']>0){
+					
+						loss = '<span'+((p['dmm'+_x+'_'+i+'']==Math.min(...dmm_arr))?' style = "font-weight: 900; text-decoration: underline 3px; text-decoration-skip-ink: none;"':'')+'>-' +(p['dmm'+_x+'_'+i+'']/p['Sejm_2023_SUMA']*100).toFixed(2) + ' p.p.</span> \
+								<img src="images/'+p['nrm'+_x+'_'+i+'']+'.jpg" alt ="Partia"  class="Logo6" style="margin-top: 2px; border-color: green;"/>';
+								
+						loss_descr = '	Komitet <img img style="vertical-align: middle; display: inline; float: none;" src="images/'+_x+'.jpg" alt ="Partia"  class="Logo5"/> oddając komitetowi&nbsp;<img style="vertical-align: middle; display: inline; float: none;" src="images/'+i+'.jpg" alt ="Partia"  class="Logo5"/> <span style="color:red; font-weight:700; text-shadow:  rgba(255, 255, 255, 1.0) 1px 0px 2px, rgba(255, 255, 255, 1.0) 0.540302px 0.841471px 2px, rgba(255, 255, 255, 1.0) -0.416147px 0.909297px 2px, rgba(255, 255, 255, 1.0) -0.989991px 0.14112px 2px, rgba(255, 255, 255, 1.0) -0.653641px -0.756801px 2px, rgba(255, 255, 255, 1.0) 0.283662px -0.958921px 2px, rgba(255, 255, 255, 1.0) 0.96017px -0.279411px 2px;">' +     numberWithSpaces(p['dmm'+_x+'_'+i+''])+'</span>&nbsp;'+voteWr(p['dmm'+_x+'_'+i+''])+ ' (<span style="color:red; font-weight:700;  text-shadow:  rgba(255, 255, 255, 1.0) 1px 0px 2px, rgba(255, 255, 255, 1.0) 0.540302px 0.841471px 2px, rgba(255, 255, 255, 1.0) -0.416147px 0.909297px 2px, rgba(255, 255, 255, 1.0) -0.989991px 0.14112px 2px, rgba(255, 255, 255, 1.0) -0.653641px -0.756801px 2px, rgba(255, 255, 255, 1.0) 0.283662px -0.958921px 2px, rgba(255, 255, 255, 1.0) 0.96017px -0.279411px 2px;">' +(p['dmm'+_x+'_'+i+'']/p['Sejm_2023_SUMA']*100).toFixed(2) + '&nbsp;p.p.</span>) traci mandat na rzecz komitetu <img style="vertical-align: middle; display: inline; float: none;" src="images/'+p['nrm'+_x+'_'+i+'']+'.jpg" alt ="Partia"  class="Logo5"/>.';
+						
+					}else{
+					
+						loss = '<span>&mdash;</span><br>';
+						
+						loss_descr = 'Komitet <img img style="vertical-align: middle; display: inline; float: none;" src="images/'+_x+'.jpg" alt ="Partia"  class="Logo5"/> nie zdobył żadnego mandatu, więc nie ma czego stracić.';
+						
+					}
+					text.push('<td>\
+						<div class="container" style="padding: 0; margin: auto;">\
+							<a class="has-tooltip" href="#">\
+								<span class = "ColCell" style="background-color: ' + (d3.interpolateRdYlBu((p['dm'+_x+'_'+i+'']+100)/200))  + ';">\
+									'+gain+'\
+									'+loss+'\
+								</span>\
+								<span class="tooltip-wrapper">\
+									<span class="tooltipc" style="padding: 4px; background-color: #606060f8; width: 160px; height: auto; margin-left: -60px;">\
+										<p style = "margin: 2px; font-weight: 400; color: #fff; line-height: 1; text-align: left;">\
+											'+gain_descr+'\
+										</p>\
+										<hr>\
+										<p style = "margin: 2px; font-weight: 400; color: #fff; line-height: 1; text-align: left;">\
+											'+loss_descr+'\
+										</p>\
+									</span>\
+								</span>\
+							</a>\
+						</div>\
+					</td>');
+				}
+			}
+			//text.push('<td></td>');
+			
+			return text.join('');
+		}
+		
+		
+		console.log(d3.interpolateRdGy(0.5));
+		console.log(d3.interpolateRdGy(0.55));
+		console.log(d3.interpolateRdGy(0.6));
+		console.log(d3.interpolateRdGy(0.65));
+        function pop_Okregi_0(feature, layer) {
+			var popupList  ='<div style ="margin-left: auto; margin-right: auto; width:  456px; margin-bottom: -8px; margin-top: -16px; padding: 0px;"><p style="text-align: center; padding: 8px 0px 0px 0px; font-weight: bold; font-color: #444;">Kolejność obsadzania mandatów posłów:</p></div><div style ="margin-left: auto; margin-right: auto; width:  480px; border-radius: 10px; padding: 6px 10px 10px 10px; background-color: #f7f7f7; box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);">';
+			/*
+			rgb(250, 244, 241)  2
+			rgb(239, 238, 238) 1
+			rgb(223, 223, 223) 4
+			rgb(205, 205, 205) 3
+			*/
+			//http://www.sejm.gov.pl/Sejm9.nsf/posel.xsp?id=003&type=A
+			for (i=1; i<=24; i++){
+			popupList  = popupList  +'<div class = "tooltip" style="float: left"><div style="text-align: center; font-size: 8px; width:  40px; margin-top: 2px;">'+i+'</div><div  class = "pLogo" style=" width:  38px; padding: 0px 1px 0px 1px; font-size: 8px">'+(feature.properties['Sejm_2023_L_mandat'] >=i ?'<a href = "http://www.sejm.gov.pl/'+(feature.properties['PnP_Z'+i]!== null ?'' : '')+'" target="_blank"><img src="images/'+(feature.properties['Mandaty_kol_P' + i]!== null ? Autolinker.link(String(feature.properties['Mandaty_kol_P' + i])) : '')+'.jpg" alt ="I'+i+'"  class="Logo3"></a>':'\
+			<img src="images/'+(feature.properties['Mandaty_kol_P' + i]!== null ? Autolinker.link(String(feature.properties['Mandaty_kol_P' + i])) : '')+'.jpg" alt ="I'+i+'"  class="Logo4" style="border: 2px solid #bbbbbb; margin: 1px;filter: contrast(88%);">')+'\
+			<div class="tooltiptext"' + (feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: #878787;"' : '') + '>\
+			<table class="pop_tab" '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="border-color: #878787;"' : '')+'>\
+			<tr>\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(223, 223, 223);"' : '')+'>Imiona i&nbsp;nazwisko:</td>\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(250, 244, 241); color: #444; font-weight: bold;"' : '')+'>'+(feature.properties['PnP_M'+i]!== null ? Autolinker.link(String(feature.properties['PnP_M'+i])) : '')+'</td>\
+			</tr>\
+			<tr >\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(205, 205, 205);"' : '')+'>Pozycja na&nbsp;liście:</td>\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(239, 238, 238);"' : '')+'>'+(feature.properties['PnP_Poz'+i]!== null ? Autolinker.link(String(feature.properties['PnP_Poz'+i])) : '')+'</td>\
+			</tr>\
+			<tr >\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(223, 223, 223);"' : '')+'>Przynależność do&nbsp;partii:</td>\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(250, 244, 241);"' : '')+'>'+(feature.properties['PnQ_P'+i]!== 'brak' ? Autolinker.link(String(feature.properties['PnQ_P'+i])) : '&mdash;')+'</td>\
+			</tr>\
+			<tr>\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(205, 205, 205);"' : '')+'>Zawód:</td>\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style=" background-color: rgb(239, 238, 238);"' : '')+'>'+(feature.properties['PnP_Zaw'+i]!== null ? Autolinker.link(String(feature.properties['PnP_Zaw'+i])) : '')+'</td>\
+			</tr>\
+			<tr>\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(223, 223, 223);"' : '')+'>Miejsce zamieszkania:</td>\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(250, 244, 241);"' : '')+'>'+(feature.properties['PnP_Zam'+i]!== null ? Autolinker.link(String(feature.properties['PnP_Zam'+i])) : '')+'</td>\
+			</tr>\
+			<tr>\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(205, 205, 205);"' : '')+'>Liczba głosów:</td>\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(239, 238, 238);"' : '')+'>'+(feature.properties['PnP_Zam'+i]!== null ? /*lengthToBlank(feature.properties['PnP_LG'+i])+*/numberWithSpaces(feature.properties['PnP_LG'+i]) : '')+'</td>\
+			</tr>\
+			<tr>\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(223, 223, 223);"' : '')+'>% głosów oddanych na&nbsp;listę:</td>\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(250, 244, 241);"' : '')+'>'+(feature.properties['PnP_Zam'+i]!== null ? feature.properties['PnP_PGL'+i] : '')+'%</td>\
+			</tr>\
+			<tr>\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(205, 205, 205);"' : '')+'>% głosów oddanych w&nbsp;okręgu:</td>\
+				<td '+(feature.properties['Sejm_2023_L_mandat'] < i ? ' style="background-color: rgb(239, 238, 238);"' : '')+'>'+(feature.properties['PnP_Zam'+i]!== null ? Autolinker.link(String(feature.properties['PnP_PGO'+i].toFixed(2))) : '')+'%</td>\
+			</tr>\
+			</table>\
+			</div>\ \
+			</div>\
+			</div>';
+			if ((i) % 12 ==0) popupList = popupList + '<div style="clear:both;"></div>';
+			}
+			/*popupList  = popupList  + '<div style="clear: both"></div>';*/
+			/*var popupList = '<h4>Kolejność przydzielonych mandatów:</h4>' + (for (i=1; i<=12; i++)Autolinker.link(String('<div style="float: left"><img src="images/'+i+'.jpg" alt ="P1"  class="Logo3"/></div>')))+'<div style="clear: both">';*/
+			/*var tempus = 1;
+			console.log("Bla " + feature.properties['Sejm_2023_dmm'+tempus]);*/
+            var popupContent = ' <h3>' + 'Okręg wyborczy nr ' + (feature.properties['jpt_kod_je'] !== null ? Autolinker.link(String(feature.properties['jpt_kod_je'])) : '') + '</h3>\
+                    <p style="line-height: 1.6">\
+                        Oddano <span style="color: #444; font-weight: bold;">' + (feature.properties['Sejm_2023_SUMA'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_SUMA']) : '') + '</span> głosów ważnych.<br>Obsadzono <span style="color: #444; font-weight: bold;">' + (feature.properties['Sejm_2023_L_mandat'] !== null ? Autolinker.link(String(numberWithSpaces(feature.properties['Sejm_2023_L_mandat']))) : '') + '</span>  mandatów.</p>\
+						<div id = "divScrolled" style="width: 576px; height: 336px; margin-top: -12px; overflow-x: hidden; padding: 4px; background-color: #ddffdd80; border: 4px solid #e4f4d480; border-radius: 16px; box-shadow: inset 0 1px 8px rgba(0,80,0,0.16), 0 1px 8px rgba(96,168,96,0.16);">\
+						<p style = "padding 16px; margin: 16px 16px 8px 16px; text-align: center; font-weight: bold; color: #444;">Wyniki poszczególnych komitetów wyborczych oraz&nbsp;liczba głosów potrzebnych do&nbsp;utraty/zdobycia pojedynczego mandatu (<span style = "color: #666;"><i>zakładamy, że komitety nie odbierają sobie nawzajem wyborców</i></span>):</p>\
+					<table style="border-style: solid; border-radius: 10px; border-color: #276419; margin-top: 8px; margin-bottom: 24px;" class="tabela">\
+					<thead><tr>\
+                        <th style="border-width:1px; border-style: solid;">Komitet<br>wyborczy</th>\
+						<th style="border-width:1px; border-style: solid; width: 72px;">Poparcie</th>\
+						<th style="border-width:1px; border-style: solid;">Liczba<br>mandatów</th>\
+						<th style="border-width:1px; border-style: solid;">-1 mandat</th>\
+						<th style="border-width:1px; border-style: solid;">+1 mandat</th>\
+						<th style="border-width:1px; border-style: solid;">"Pewność"<br>mandatu</th>\
+                    </tr></thead>\
+                    <tbody><tr>\
+						<td style="font-weight: bold; border-width:1px; border-style: solid;"><img src="legend/PiS.png" alt ="PiS"  class="Logo2"/> </td>\
+                        <td>'						+(lengthToBlank(feature.properties['Sejm_2023_1']))+(feature.properties['Sejm_2023_m1'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_1']):'')+'<br>'+(lengthToBlank2(feature.properties['Sejm_2023_p1']))+'(<span class="td_down">'+ (feature.properties['Sejm_2023_p1'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_p1'].toFixed(2))) : '') + '%</span>)</td>\
+						<td style="font-weight: bold;">' + (feature.properties['Sejm_2023_m1'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_m1'])) : '') + '</td>\
+						<td>'
+							+ (feature.properties['Sejm_2023_m1'] !== 0 ?
+							'<div style="float:left; width: 76px;">\
+								<span style = "color: red;">'+(lengthToBlank1(feature.properties['Sejm_2023_dmm1'])) + "-" + (feature.properties['Sejm_2023_dmm1'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_dmm1']) : '')+
+								'</span><br>'+
+								(lengthToBlankX(feature.properties['Sejm_2023_p1']-100*(feature.properties['Sejm_2023_1']-feature.properties['Sejm_2023_dmm1'])/(feature.properties['Sejm_2023_SUMA']-feature.properties['Sejm_2023_dmm1']), 5))+
+								'(<span class="td1_down" style = "color: red;">-'+ (feature.properties['Sejm_2023_p1'] !== null ? (feature.properties['Sejm_2023_p1']-100*(feature.properties['Sejm_2023_1']-feature.properties['Sejm_2023_dmm1'])/(feature.properties['Sejm_2023_SUMA']-feature.properties['Sejm_2023_dmm1'])).toFixed(2) : '') + '&nbsp;p.p.</span>)' + 
+							'</div>\
+							<div style="float:left; width: 24px; height: 32px;">\
+								<img style="border: 2px solid green; border-radius:4px; margin: 8px 2px 2px 2px;" src="images/'+feature.properties['nrm1']+'.jpg" alt ="Partia"  class="Logo5"/>\
+							</div>\
+							<div style="clear: both;"></div>' : '&mdash;')+
+						'</td>\
+						<td>\
+							<div style="float:left; width: 76px;">\
+								<span style = "color: green;">'+(lengthToBlank1(feature.properties['Sejm_2023_dmp1'])) + "+" + (feature.properties['Sejm_2023_dmp1'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_dmp1']) : '')+
+								'</span><br>'+
+								(lengthToBlankX(100*(feature.properties['Sejm_2023_1']+feature.properties['Sejm_2023_dmp1'])/(feature.properties['Sejm_2023_SUMA']+feature.properties['Sejm_2023_dmp1'])-feature.properties['Sejm_2023_p1'], 5))+
+								'(<span class="td1_down" style = "color: green;">+'+ (feature.properties['Sejm_2023_p1'] !== null ? (100*(feature.properties['Sejm_2023_1']+feature.properties['Sejm_2023_dmp1'])/(feature.properties['Sejm_2023_SUMA']+feature.properties['Sejm_2023_dmp1'])-feature.properties['Sejm_2023_p1']).toFixed(2) : '') + '&nbsp;p.p.</span>)' + 
+							'</div>\
+							<div style="float:left; width: 24px; height: 32px;">\
+								<img style="border: 2px solid red; border-radius:4px; margin: 8px 2px 2px 2px;" src="images/'+feature.properties['nrp1']+'.jpg" alt ="Partia"  class="Logo5"/>\
+							</div>\
+							<div style="clear: both;"></div>\
+						</td>\
+						<td style="background-color: ' + (d3.interpolateRdYlBu((feature.properties['Sejm_2023_dm1']+100)/200))  + ';"></td>\
+                    </tr>\
+					<tr>\
+						<td style="font-weight: bold; border-width:1px; border-style: solid;"><img src="legend/KO.png" alt ="KO"  class="Logo2"/> </td>\
+                        <td>' +(lengthToBlank(feature.properties['Sejm_2023_2']))+(feature.properties['Sejm_2023_m2'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_2']):'')+'<br>'+(lengthToBlank2(feature.properties['Sejm_2023_p2']))+'(<span class = "td_down" >'+  (feature.properties['Sejm_2023_p2'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_p2'].toFixed(2))) : '') + '%</span>)</td>\
+						<td style="font-weight: bold;">' + (feature.properties['Sejm_2023_m2'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_m2'])) : '') + '</td>\
+						<td>\
+							<div style="float:left; width: 76px;">\
+								<span style = "color: red;">'+(lengthToBlank1(feature.properties['Sejm_2023_dmm2'])) + "-" + (feature.properties['Sejm_2023_dmm2'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_dmm2']) : '')+
+								'</span><br>'+
+								(lengthToBlankX(feature.properties['Sejm_2023_p2']-100*(feature.properties['Sejm_2023_2']-feature.properties['Sejm_2023_dmm2'])/(feature.properties['Sejm_2023_SUMA']-feature.properties['Sejm_2023_dmm2']), 5))+
+								'(<span class="td1_down" style = "color: red;">-'+ (feature.properties['Sejm_2023_p2'] !== null ? (feature.properties['Sejm_2023_p2']-100*(feature.properties['Sejm_2023_2']-feature.properties['Sejm_2023_dmm2'])/(feature.properties['Sejm_2023_SUMA']-feature.properties['Sejm_2023_dmm2'])).toFixed(2) : '') + '&nbsp;p.p.</span>)' + 
+							'</div>\
+							<div style="float:left; width: 24px; height: 32px;">\
+								<img style="border: 2px solid green; border-radius:4px; margin: 8px 2px 2px 2px;" src="images/'+feature.properties['nrm2']+'.jpg" alt ="Partia"  class="Logo5"/>\
+							</div>\
+							<div style="clear: both;"></div>\
+						</td>\
+						<td>\
+							<div style="float:left; width: 76px;">\
+								<span style = "color: green;">'+(lengthToBlank1(feature.properties['Sejm_2023_dmp2'])) + "+" + (feature.properties['Sejm_2023_dmp2'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_dmp2']) : '')+
+								'</span><br>'+
+								(lengthToBlankX(100*(feature.properties['Sejm_2023_2']+feature.properties['Sejm_2023_dmp2'])/(feature.properties['Sejm_2023_SUMA']+feature.properties['Sejm_2023_dmp2'])-feature.properties['Sejm_2023_p2'], 5))+
+								'(<span class="td1_down" style = "color: green;">+'+ (feature.properties['Sejm_2023_p2'] !== null ? (100*(feature.properties['Sejm_2023_2']+feature.properties['Sejm_2023_dmp2'])/(feature.properties['Sejm_2023_SUMA']+feature.properties['Sejm_2023_dmp2'])-feature.properties['Sejm_2023_p2']).toFixed(2) : '') + '&nbsp;p.p.</span>)' + 
+							'</div>\
+							<div style="float:left; width: 24px; height: 32px;">\
+								<img style="border: 2px solid red; border-radius:4px; margin: 8px 2px 2px 2px;" src="images/'+feature.properties['nrp2']+'.jpg" alt ="Partia"  class="Logo5"/>\
+							</div>\
+							<div style="clear: both;"></div>\
+						</td>\
+						<td style="background-color: ' + (d3.interpolateRdYlBu((feature.properties['Sejm_2023_dm2']+100)/200))  + ';"></td>\
+                    </tr>\
+					<tr>\
+						<td style="font-weight: bold; border-width:1px; border-style: solid;"><img src="legend/TD.jpeg" alt ="Trzecia Droga"  class="Logo2"/> </td>\
+                        <td>' +(lengthToBlank(feature.properties['Sejm_2023_5']))+(feature.properties['Sejm_2023_m5'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_5']):'')+'<br>'+(lengthToBlank2(feature.properties['Sejm_2023_p5']))+'(<span class = "td_down" >'+  (feature.properties['Sejm_2023_p5'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_p5'].toFixed(2))) : '') + '%</span>)</td>\
+						<td style="font-weight: bold;">' + (feature.properties['Sejm_2023_m5'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_m5'])) : '') + '</td>\
+						<td>'
+							+ (feature.properties['Sejm_2023_m5'] !== 0 ?
+							'<div style="float:left; width: 76px;">\
+								<span style = "color: red;">'+(lengthToBlank1(feature.properties['Sejm_2023_dmm5'])) + "-" + (feature.properties['Sejm_2023_dmm5'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_dmm5']) : '')+
+								'</span><br>'+
+								(lengthToBlankX(feature.properties['Sejm_2023_p5']-100*(feature.properties['Sejm_2023_5']-feature.properties['Sejm_2023_dmm5'])/(feature.properties['Sejm_2023_SUMA']-feature.properties['Sejm_2023_dmm5']), 5))+
+								'(<span class="td1_down" style = "color: red;">-'+ (feature.properties['Sejm_2023_p5'] !== null ? (feature.properties['Sejm_2023_p5']-100*(feature.properties['Sejm_2023_5']-feature.properties['Sejm_2023_dmm5'])/(feature.properties['Sejm_2023_SUMA']-feature.properties['Sejm_2023_dmm5'])).toFixed(2) : '') + '&nbsp;p.p.</span>)' + 
+							'</div>\
+							<div style="float:left; width: 24px; height: 32px;">\
+								<img style="border: 2px solid green; border-radius:4px; margin: 8px 2px 2px 2px;" src="images/'+feature.properties['nrm3']+'.jpg" alt ="Partia"  class="Logo5"/>\
+							</div>\
+							<div style="clear: both;"></div>' : '&mdash;')+
+						'</td>\
+						<td>\
+						<div style="float:left; width: 76px;">\
+								<span style = "color: green;">'+(lengthToBlank1(feature.properties['Sejm_2023_dmp5'])) + "+" + (feature.properties['Sejm_2023_dmp5'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_dmp5']) : '')+
+								'</span><br>'+
+								(lengthToBlankX(100*(feature.properties['Sejm_2023_5']+feature.properties['Sejm_2023_dmp5'])/(feature.properties['Sejm_2023_SUMA']+feature.properties['Sejm_2023_dmp5'])-feature.properties['Sejm_2023_p5'], 5))+
+								'(<span class="td1_down" style = "color: green;">+'+ (feature.properties['Sejm_2023_p5'] !== null ? (100*(feature.properties['Sejm_2023_5']+feature.properties['Sejm_2023_dmp5'])/(feature.properties['Sejm_2023_SUMA']+feature.properties['Sejm_2023_dmp5'])-feature.properties['Sejm_2023_p5']).toFixed(2) : '') + '&nbsp;p.p.</span>)' + 
+							'</div>\
+							<div style="float:left; width: 24px; height: 32px;">\
+								<img style="border: 2px solid red; border-radius:4px; margin: 8px 2px 2px 2px;" src="images/'+feature.properties['nrp3']+'.jpg" alt ="Partia"  class="Logo5"/>\
+							</div>\
+							<div style="clear: both;"></div>\
+						</td>\
+						<td style="background-color: ' + (d3.interpolateRdYlBu((feature.properties['Sejm_2023_dm5']+100)/200))  + ';"></td>\
+                    </tr>\
+					<tr>\
+						<td style="font-weight: bold; border-width:1px; border-style: solid;"><img src="legend/Lewica.jpg" alt ="Lewica"  class="Logo2"/> </td>\
+                        <td>' +(lengthToBlank(feature.properties['Sejm_2023_6']))+(feature.properties['Sejm_2023_m6'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_6']):'')+'<br>'+(lengthToBlank2(feature.properties['Sejm_2023_p6']))+'(<span class = "td_down" >'+  (feature.properties['Sejm_2023_p6'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_p6'].toFixed(2))) : '') + '%</span>)</td>\
+						<td style="font-weight: bold;">' + (feature.properties['Sejm_2023_m6'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_m6'])) : '') + '</td>\
+						<td>'
+							+ (feature.properties['Sejm_2023_m6'] !== 0 ?
+							'<div style="float:left; width: 76px;">\
+								<span style = "color: red;">'+(lengthToBlank1(feature.properties['Sejm_2023_dmm6'])) + "-" + (feature.properties['Sejm_2023_dmm6'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_dmm6']) : '')+
+								'</span><br>'+
+								(lengthToBlankX(feature.properties['Sejm_2023_p6']-100*(feature.properties['Sejm_2023_6']-feature.properties['Sejm_2023_dmm6'])/(feature.properties['Sejm_2023_SUMA']-feature.properties['Sejm_2023_dmm6']), 5))+
+								'(<span class="td1_down" style = "color: red;">-'+ (feature.properties['Sejm_2023_p6'] !== null ? (feature.properties['Sejm_2023_p6']-100*(feature.properties['Sejm_2023_6']-feature.properties['Sejm_2023_dmm6'])/(feature.properties['Sejm_2023_SUMA']-feature.properties['Sejm_2023_dmm6'])).toFixed(2) : '') + '&nbsp;p.p.</span>)' + 
+							'</div>\
+							<div style="float:left; width: 24px; height: 32px;">\
+								<img style="border: 2px solid green; border-radius:4px; margin: 8px 2px 2px 2px;" src="images/'+feature.properties['nrm4']+'.jpg" alt ="Partia"  class="Logo5"/>\
+							</div>\
+							<div style="clear: both;"></div>' : '&mdash;')+
+						'</td>\
+						<td>\
+							<div style="float:left; width: 76px;">\
+								<span style = "color: green;">'+(lengthToBlank1(feature.properties['Sejm_2023_dmp6'])) + "+" + (feature.properties['Sejm_2023_dmp6'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_dmp6']) : '')+
+								'</span><br>'+
+								(lengthToBlankX(100*(feature.properties['Sejm_2023_6']+feature.properties['Sejm_2023_dmp6'])/(feature.properties['Sejm_2023_SUMA']+feature.properties['Sejm_2023_dmp6'])-feature.properties['Sejm_2023_p6'], 5))+
+								'(<span class="td1_down" style = "color: green;">+'+ (feature.properties['Sejm_2023_p6'] !== null ? (100*(feature.properties['Sejm_2023_6']+feature.properties['Sejm_2023_dmp6'])/(feature.properties['Sejm_2023_SUMA']+feature.properties['Sejm_2023_dmp6'])-feature.properties['Sejm_2023_p6']).toFixed(2) : '') + '&nbsp;p.p.</span>)' + 
+							'</div>\
+							<div style="float:left; width: 24px; height: 32px;">\
+								<img style="border: 2px solid red; border-radius:4px; margin: 8px 2px 2px 2px;" src="images/'+feature.properties['nrp4']+'.jpg" alt ="Partia"  class="Logo5"/>\
+							</div>\
+							<div style="clear: both;"></div>\
+						</td>\
+						<td style="background-color: ' + (d3.interpolateRdYlBu((feature.properties['Sejm_2023_dm6']+100)/200))  + ';"></td>\
+                    </tr>\
+					<tr>\
+						<td style="font-weight: bold; border-width:1px; border-style: solid;"><img src="legend/Konfederacja.jpg" alt ="Konfederacja"  class="Logo2"/> </td>\
+                        <td>'+(lengthToBlank(feature.properties['Sejm_2023_7']))+(feature.properties['Sejm_2023_m7'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_7']):'')+'<br>'+(lengthToBlank2(feature.properties['Sejm_2023_p7']))+'(<span class = "td_down" >'+  (feature.properties['Sejm_2023_p7'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_p7'].toFixed(2))) : '') + '%</span>)</td>\
+						<td style="font-weight: bold;">' + (feature.properties['Sejm_2023_m7'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_m7'])) : '') + '</td>\
+						<td>'
+							+ (feature.properties['Sejm_2023_m7'] !== 0 ?
+							'<div style="float:left; width: 76px;">\
+								<span style = "color: red;">'+(lengthToBlank1(feature.properties['Sejm_2023_dmm7'])) + "-" + (feature.properties['Sejm_2023_dmm7'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_dmm7']) : '')+
+								'</span><br>'+
+								(lengthToBlankX(feature.properties['Sejm_2023_p7']-100*(feature.properties['Sejm_2023_7']-feature.properties['Sejm_2023_dmm7'])/(feature.properties['Sejm_2023_SUMA']-feature.properties['Sejm_2023_dmm7']), 5))+
+								'(<span class="td1_down" style = "color: red;">-'+ (feature.properties['Sejm_2023_p7'] !== null ? (feature.properties['Sejm_2023_p7']-100*(feature.properties['Sejm_2023_7']-feature.properties['Sejm_2023_dmm7'])/(feature.properties['Sejm_2023_SUMA']-feature.properties['Sejm_2023_dmm7'])).toFixed(2) : '') + '&nbsp;p.p.</span>)' + 
+							'</div>\
+							<div style="float:left; width: 24px; height: 32px;">\
+								<img style="border: 2px solid green; border-radius:4px; margin: 8px 2px 2px 2px;" src="images/'+feature.properties['nrm5']+'.jpg" alt ="Partia"  class="Logo5"/>\
+							</div>\
+							<div style="clear: both;"></div>' : '&mdash;')+
+						'</td>\
+						<td>\
+							<div style="float:left; width: 76px;">\
+								<span style = "color: green;">'+(lengthToBlank1(feature.properties['Sejm_2023_dmp7'])) + "+" + (feature.properties['Sejm_2023_dmp7'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_dmp7']) : '')+
+								'</span><br>'+
+								(lengthToBlankX(100*(feature.properties['Sejm_2023_7']+feature.properties['Sejm_2023_dmp7'])/(feature.properties['Sejm_2023_SUMA']+feature.properties['Sejm_2023_dmp7'])-feature.properties['Sejm_2023_p7'], 5))+
+								'(<span class="td1_down" style = "color: green;">+'+ (feature.properties['Sejm_2023_p7'] !== null ? (100*(feature.properties['Sejm_2023_7']+feature.properties['Sejm_2023_dmp7'])/(feature.properties['Sejm_2023_SUMA']+feature.properties['Sejm_2023_dmp7'])-feature.properties['Sejm_2023_p7']).toFixed(2) : '') + '&nbsp;p.p.</span>)' + 
+							'</div>\
+							<div style="float:left; width: 24px; height: 32px;">\
+								<img style="border: 2px solid red; border-radius:4px; margin: 8px 2px 2px 2px;" src="images/'+feature.properties['nrp5']+'.jpg" alt ="Partia"  class="Logo5"/>\
+							</div>\
+							<div style="clear: both;"></div>\
+						</td>\
+						<td style="background-color: ' + (d3.interpolateRdYlBu((feature.properties['Sejm_2023_dm7']+100)/200))  + ';"></td>\
+                    </tr>'
+					+ (feature.properties['Sejm_2023_p8'] > 0 ? 
+						'<tr>\
+							<td style="font-weight: bold; border-width:1px; border-style: solid;"><img src="legend/MN.jpg" alt ="Mniejszość Niemiecka"  class="Logo2"/> </td>\
+							<td>'+(lengthToBlank(feature.properties['Sejm_2023_8']))+(feature.properties['Sejm_2023_m8'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_8']):'')+'<br>'+(lengthToBlank2(feature.properties['Sejm_2023_p8']))+'(<span class = "td_down" >'+  (feature.properties['Sejm_2023_p8'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_p8'].toFixed(2))) : '') + '%</span>)</td>\
+							<td style="font-weight: bold;">' + (feature.properties['Sejm_2023_m8'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_m8'])) : '') + '</td>\
+							<td>'
+								+ (feature.properties['Sejm_2023_m8'] !== 0 ?
+								'<div style="float:left; width: 76px;">\
+									<span style = "color: red;">'+(lengthToBlank1(feature.properties['Sejm_2023_dmm8'])) + "-" + (feature.properties['Sejm_2023_dmm8'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_dmm8']) : '')+
+									'</span><br>'+
+									(lengthToBlankX(feature.properties['Sejm_2023_p8']-100*(feature.properties['Sejm_2023_8']-feature.properties['Sejm_2023_dmm8'])/(feature.properties['Sejm_2023_SUMA']-feature.properties['Sejm_2023_dmm8']), 5))+
+									'(<span class="td1_down" style = "color: red;">-'+ (feature.properties['Sejm_2023_p8'] !== null ? (feature.properties['Sejm_2023_p8']-100*(feature.properties['Sejm_2023_8']-feature.properties['Sejm_2023_dmm8'])/(feature.properties['Sejm_2023_SUMA']-feature.properties['Sejm_2023_dmm8'])).toFixed(2) : '') + '&nbsp;p.p.</span>)' + 
+								'</div>\
+								<div style="float:left; width: 24px; height: 32px;">\
+									<img style="border: 2px solid green; border-radius:4px; margin: 8px 2px 2px 2px;" src="images/'+feature.properties['nrm6']+'.jpg" alt ="Partia"  class="Logo5"/>\
+								</div>\
+								<div style="clear: both;"></div>' : '&mdash;')+
+							'</td>\
+							<td>\
+								<div style="float:left; width: 76px;">\
+									<span style = "color: green;">'+(lengthToBlank1(feature.properties['Sejm_2023_dmp8'])) + "+" + (feature.properties['Sejm_2023_dmp8'] !== null ? numberWithSpaces(feature.properties['Sejm_2023_dmp8']) : '')+
+									'</span><br>'+
+									(lengthToBlankX(100*(feature.properties['Sejm_2023_8']+feature.properties['Sejm_2023_dmp8'])/(feature.properties['Sejm_2023_SUMA']+feature.properties['Sejm_2023_dmp8'])-feature.properties['Sejm_2023_p8'], 5))+
+									'(<span class="td1_down" style = "color: green;">+'+ (feature.properties['Sejm_2023_p8'] !== null ? (100*(feature.properties['Sejm_2023_8']+feature.properties['Sejm_2023_dmp8'])/(feature.properties['Sejm_2023_SUMA']+feature.properties['Sejm_2023_dmp8'])-feature.properties['Sejm_2023_p8']).toFixed(2) : '') + '&nbsp;p.p.</span>)' + 
+								'</div>\
+								<div style="float:left; width: 24px; height: 32px;">\
+									<img style="border: 2px solid red; border-radius:4px; margin: 8px 2px 2px 2px;" src="images/'+feature.properties['nrp6']+'.jpg" alt ="Partia"  class="Logo5"/>\
+								</div>\
+								<div style="clear: both;"></div>\
+							</td>\
+							<td style="background-color: ' + (d3.interpolateRdYlBu((feature.properties['Sejm_2023_dm8']+100)/200))  + ';"></td>\
+						</tr>'
+						:'')+
+                '</tbody></table>'
+				+(feature.properties['Sejm_2023_p8'] > 0 ? '':'<div style = "height: 32px;"></div>')+
+				'<p style = "padding 16px; margin: 32px 16px 8px 16px; text-align: center; font-weight: bold; color: #444;">Minimalna zmiana poparcia skutkująca zdobyciem/utratą pojedynczego mandatu (<span style = "color: #666;"><i>przy założeniu, że komitety tylko i wyłącznie odbierają sobie nawzajem wyborców</i></span>):</p>\
+				<table style="border-style: solid; border-radius: 10px; border-color: #276419; margin-top: 8px; margin-bottom: 8px;" class="tabelcia">\
+					<thead>\
+					<tr>\
+                        <th colspan = "2" rowspan = "2" style="border-width:1px; border-style: solid; background-color: #2f6c21; border-radius: 8px;"></th>\
+						<th colspan = "'+(feature.properties['Sejm_2023_p8'] > 0 ? '6':'5')+'" style="border-width:1px; border-style: solid; height: auto; font-size: 10px;">Komitet oddający/odbierający minimalną potrzebną liczbę głosów<br>komitetowi, który dzięki temu zdobywa/traci mandat</th>\
+					<tr>\
+						<th style="border-width:1px; border-style: solid;"><img src="legend/PiS.png" alt ="PiS"  class="Logo2"/></th>\
+						<th style="border-width:1px; border-style: solid;"><img src="legend/KO.png" alt ="KO"  class="Logo2"/></th>\
+						<th style="border-width:1px; border-style: solid;"><img src="legend/TD.jpeg" alt ="Trzecia Droga"  class="Logo2"/></th>\
+						<th style="border-width:1px; border-style: solid;"><img src="legend/Lewica.jpg" alt ="Lewica"  class="Logo2"/></th>\
+						<th style="border-width:1px; border-style: solid;"><img src="legend/Konfederacja.jpg" alt ="Konfederacja"  class="Logo2"/></th>'+(feature.properties['Sejm_2023_p8'] > 0 ? '<th style="border-width:1px; border-style: solid;"><img src="legend/MN.jpg" alt ="Mniejszość Niemiecka"  class="Logo2"/></th>':'')+
+                    '</tr></thead>\
+                    <tbody><tr>\
+						<td rowspan = "'+(feature.properties['Sejm_2023_p8'] > 0 ? '6':'5')+'" style="width: auto; writing-mode: vertical-rl; transform: rotate(-180deg); font-size: 10px;">Komitet zyskujący/tracący mandat dzięki<br>odebraniu/oddaniu minimalnej potrzebnej do tego<br>liczby głosów konkurencyjnemu komitetowi</td>\
+						<td class = "rowLogo"><img src="legend/PiS.png" alt ="PiS"  class="Logo2"/> </td>\
+						\
+                        '+fillRow(feature, layer, 1)+'\
+                    </tr>\
+					<tr>\
+						<td class = "rowLogo"><img src="legend/KO.png" alt ="KO"  class="Logo2"/> </td>\
+						\
+                        '+fillRow(feature, layer, 2)+'\
+                    </tr>\
+					<tr>\
+						<td class = "rowLogo"><img src="legend/TD.jpeg" alt ="Trzecia Droga"  class="Logo2"/> </td>\
+                        \
+                        '+fillRow(feature, layer, 3)+'\
+                    </tr>\
+					<tr>\
+						<td class = "rowLogo"><img src="legend/Lewica.jpg" alt ="Lewica"  class="Logo2"/> </td>\
+                        \
+                        '+fillRow(feature, layer, 4)+'\
+                    </tr>\
+					<tr>\
+						<td class = "rowLogo"><img src="legend/Konfederacja.jpg" alt ="Konfederacja"  class="Logo2"/> </td>\
+                        \
+                        '+fillRow(feature, layer, 5)+'\
+                    </tr>'
+					+ (feature.properties['Sejm_2023_p8'] > 0 ? 
+						'<tr>\
+							<td class = "rowLogo"><img src="legend/MN.jpg" alt ="Mniejszość Niemiecka"  class="Logo2"/> </td>\
+							\
+							'+fillRow(feature, layer, 6)+'\
+						</tr>'
+						:'')+
+                '</tbody></table>\
+				<p style = "padding 16px; margin: 16px 16px 8px 16px; color: #444;">Źródło: <i>Opracowanie własne na podstawie danych PKW.</i></p>\
+				<p style = "padding 16px; margin: 8px 16px 8px 16px; color: #444; font-size: 10px;">UWAGA!: <i>Nie zaimplementowano tutaj mechanizmu wyłaniania zwycięzcy w przypadku remisu (sytuacji, w której na skutek hipotetycznego przepływu wyborców ostatni biorący i pierwszy niebiorący iloraz stają się jednakowe), więc rzeczywista liczba głosów potrzebnych do zdobycia/utraty mandatu może w niektórych przypadkach różnić się o 1.</i></p>\
+				</div>'+popupList;
+            layer.bindPopup(popupContent, {maxHeight: 800});
+        }
+
+		
+		function pop_Okregi_KO(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td style="font-weight: bold;">' + 'Okręg wyborczy nr ' + (feature.properties['jpt_kod_je'] !== null ? Autolinker.link(String(feature.properties['jpt_kod_je'])) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Sejm_2023_L_mandat'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_L_mandat'])) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Sejm_2023_p2'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_p2'])) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Sejm_2023_m2'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_m2'])) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Sejm_2023_dm2'] !== null ? Autolinker.link(String(feature.properties['Sejm_2023_dm2'])) : '') + '</td>\
+                    </tr>\
+                </table>';
+            layer.bindPopup(popupContent, {maxHeight: 800});
+        }
+
+        function style_Okregi_0_0(feature) {
+            if (feature.properties['Sejm_2023_dm1'] >= -100.000000 && feature.properties['Sejm_2023_dm1'] <= 100.000000 ) {
+                return {
+                pane: 'pane_Okregi_0',
+                opacity: 1,
+                color: 'rgba(0,0,0,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 0.8,
+                fillColor: d3.interpolateRdYlBu((feature.properties['Sejm_2023_dm1']+100)/200),
+				}
+            }
+        }
+		
+		function style_Okregi_0_KO(feature) {
+            if (feature.properties['Sejm_2023_dm2'] >= -100.000000 && feature.properties['Sejm_2023_dm2'] <= 100.000000 ) {
+                return {
+                pane: 'pane_Okregi_0',
+                opacity: 1,
+                color: 'rgba(0,0,0,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 0.8,
+                fillColor: d3.interpolateRdYlBu((feature.properties['Sejm_2023_dm2']+100)/200),
+				}
+            }
+        }
+		
+		function style_Okregi_0_TD(feature) {
+            if (feature.properties['Sejm_2023_dm5'] >= -100.000000 && feature.properties['Sejm_2023_dm5'] <= 100.000000 ) {
+                return {
+                pane: 'pane_Okregi_0',
+                opacity: 1,
+                color: 'rgba(0,0,0,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 0.8,
+                fillColor: d3.interpolateRdYlBu((feature.properties['Sejm_2023_dm5']+100)/200),
+				}
+            }
+        }
+		
+		function style_Okregi_0_Lewica(feature) {
+            if (feature.properties['Sejm_2023_dm6'] >= -100.000000 && feature.properties['Sejm_2023_dm6'] <= 100.000000 ) {
+                return {
+                pane: 'pane_Okregi_0',
+                opacity: 1,
+                color: 'rgba(0,0,0,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 0.8,
+                fillColor: d3.interpolateRdYlBu((feature.properties['Sejm_2023_dm6']+100)/200),
+				}
+            }
+        }
+		
+		function style_Okregi_0_Konfederacja(feature) {
+            if (feature.properties['Sejm_2023_dm7'] >= -100.000000 && feature.properties['Sejm_2023_dm7'] <= 100.000000 ) {
+                return {
+                pane: 'pane_Okregi_0',
+                opacity: 1,
+                color: 'rgba(0,0,0,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 0.8,
+                fillColor: d3.interpolateRdYlBu((feature.properties['Sejm_2023_dm7']+100)/200),
+				}
+            }
+        }
+		
+		/*function style_Okregi_0_Lewica(feature) {
+            if (feature.properties['Sejm_2023_dm6'] >= -100.000000 && feature.properties['Sejm_2023_dm6'] <= 100.000000 ) {
+                return {
+                pane: 'pane_Okregi_0',
+                opacity: 1,
+                color: 'rgba(0,0,0,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 0.8,
+                fillColor: d3.interpolateRdYlBu((feature.properties['Sejm_2023_dm6']+100)/200),
+				}
+            }
+        }
+		
+		function style_Okregi_0_Konfederacja(feature) {
+            if (feature.properties['Sejm_2023_dm7'] >= -100.000000 && feature.properties['Sejm_2023_dm7'] <= 100.000000 ) {
+                return {
+                pane: 'pane_Okregi_0',
+                opacity: 1,
+                color: 'rgba(0,0,0,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 0.8,
+                fillColor: d3.interpolateRdYlBu((feature.properties['Sejm_2023_dm7']+100)/200),
+				}
+            }
+        }*/
+		
+		var basemap0 = L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors,<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>',
+            maxZoom: 10
+        });
+		
+		
+		var map = L.map('map', {
+            zoomControl:true, maxZoom:9, minZoom:6, layers: [basemap0]
+        }).fitBounds([[48.7066734906,11.9596852528],[54.6789300376,27.5634833614]]);
+		
+		map.createPane('labels');
+		map.getPane('labels').style.zIndex = 650;
+		map.getPane('labels').style.pointerEvents = 'none';
+		//map.getPane('labels').style.display = 'none';
+		
+		map.createPane('pane_Okregi_0');
+        map.getPane('pane_Okregi_0').style.zIndex = 401;
+        map.getPane('pane_Okregi_0').style['mix-blend-mode'] = 'normal';
+		
+		layer_Okregi_0 = new L.geoJson(json_Okregi_0, {
+			name: 'PiS',
+            attribution: '<a href="www.wp.pl">PiS</a>',
+            pane: 'pane_Okregi_0',
+            onEachFeature: pop_Okregi_0,
+            style: style_Okregi_0_0,
+        }).addTo(map);
+		
+		//map.addLayer(layer_Okregi_0);
+		//map.addLayer(basemap0);
+		
+		console.log(layer_Okregi_0);
+		map.createPane('pane_Okregi_KO');
+		map.createPane('label21');
+        map.getPane('pane_Okregi_KO').style.zIndex = 400;
+		map.getPane('label21').style.zIndex = 650;
+        map.getPane('pane_Okregi_KO').style['mix-blend-mode'] = 'normal';
+		
+        var layer_Okregi_KO = new L.geoJson(json_Okregi_0, {
+			name: 'KO',
+            attribution: '<a href=""></a>',
+            pane: 'pane_Okregi_KO',
+            onEachFeature: pop_Okregi_0,
+            style: style_Okregi_0_KO,
+        }).addTo(map);
+		
+		var layer_Okregi_TD = new L.geoJson(json_Okregi_0, {
+            attribution: '<a href=""></a>',
+            pane: 'pane_Okregi_0',
+            onEachFeature: pop_Okregi_0,
+            style: style_Okregi_0_TD,
+        }).addTo(map);
+		
+		var layer_Okregi_Lewica = new L.geoJson(json_Okregi_0, {
+            attribution: '<a href=""></a>',
+            pane: 'pane_Okregi_0',
+            onEachFeature: pop_Okregi_0,
+            style: style_Okregi_0_Lewica,
+        }).addTo(map);
+		
+		var layer_Okregi_Konfederacja = new L.geoJson(json_Okregi_0, {
+            attribution: '<a href=""></a>',
+            pane: 'pane_Okregi_0',
+            onEachFeature: pop_Okregi_0,
+            style: style_Okregi_0_Konfederacja,
+        }).addTo(map);
+		
+		
+		
+		
+		/*map = L.map('map', {
+            zoomControl:true, maxZoom:8, minZoom:6, layers: [basemap0, layer_Okregi_0]
+        }).fitBounds([[48.7066734906,11.9596852528],[54.6789300376,27.5634833614]]);*/
+		//map.addLayer(osm);
+       var hash = new L.Hash(map);
+        map.attributionControl.addAttribution('<a href="https://github.com/tomchadwin/qgis2web" target="_blank">qgis2web</a>');
+		map.attributionControl.addAttribution('<a href="http://www.sejm.gov.pl/" target="_blank">Aktualni posłowie</a>');
+		
+		map.attributionControl.addAttribution('<a href="https://wybory.gov.pl/sejmsenat2023/" target="_blank">Wybory do Sejmu i Senatu Rzeczypospolitej Polskiej 2023</a>');
+		
+        //basemap0.addTo(map);
+		//L.control.locate().addTo(map);
+		
+       
+        
+        //bounds_group.addLayer(layer_Okregi_0);
+      //map.addLayer(layer_Okregi_0);
+        //setBounds();
+        var i = 0;
+		var a = map.getZoom();
+		//var area = 0;
+		//var pointLayer;
+        layer_Okregi_0.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+			var area = Math.floor(L.GeometryUtil.geodesicArea(layer.getLatLngs()[0])/1000000000);
+			console.log(a);
+			//Etykiety mapy
+			/*if (i==21){
+				//52.2177/20.7216
+				var data_points = {
+					"type":"FeatureCollection","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:OGC:1.3:CRS84"}},"features":[{"type":"Feature","properties":{"jpt_kod_je":"1601","Sejm_2023_L_mandat":"12","Sejm_2023_":37.64,"Sejm_201_1":"5","Sejm_201_2":54.8},"geometry":{"type":"Point","coordinates":[20.5716,52.2177]}}
+					]};
+					//layer = data_points;
+					
+					pointLayer = L.geoJSON(null, {
+					pointToLayer: function(feature,latlng){
+						label = String('<div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*9  + 'pt; color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; line-height: 1; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression(context)) + '</div>' // Must convert to string, .bindTooltip can't use straight 'feature.properties.attribute'
+						return new L.CircleMarker(latlng, {
+						  radius: 1,
+						}).bindTooltip(label, {permanent: true, opacity: 1.0, className: 'css_Okregi_0', direction:"center"}).openTooltip();
+						}
+					});
+				pointLayer.addData(data_points);
+				map.addLayer(pointLayer);*/
+				//}
+				/*layer.bindTooltip((label_Okregi_0_eval_expression(context) !== null?String('<div style="color: #ffffff; font-size: 16pt; font-weight: bold; font-family: \'MS Shell Dlg 2\', sans-serif; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 1px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression(context) )+'<br>' +i+ '</div>':''), {permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();*/
+				//labels.push(layer);
+				/*totalMarkers += 1;
+				layer.added = true;
+				//addLabel(layer, i);
+				i++;
+			}else */if(i==19){
+				layer.bindTooltip((label_Okregi_0_eval_expression(context) !== null?String('<div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*12  + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression(context) )+/*'<br>' +i+ */'</div>':''), {pane: 'label21', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+			else if(i==18){
+				layer.bindTooltip((label_Okregi_0_eval_expression(context) !== null?String('<div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*12  + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression(context) )+/*'<br>' +i+ */'</div>':''), {pane: 'labels', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+			else{
+				layer.bindTooltip((label_Okregi_0_eval_expression(context) !== null?String('<br><div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*16  + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression(context) )/*+'<br>' +area*/+ '</div>':''), {pane: 'labels', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center", opacity:1.0}).openTooltip();
+				//console.log("Dno x"+ i);
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+            
+        });
+		
+		//var KO = L.layerGroup([layer_Okregi_0, pointLayer]);
+        //bounds_group.addLayer(layer_Okregi_KO);
+		//map.addLayer(layer_Okregi_KO);
+
+	        //setBounds();
+        var i = 0;
+		var a = map.getZoom();
+		//var area = 0;
+        layer_Okregi_KO.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+			var area = Math.floor(L.GeometryUtil.geodesicArea(layer.getLatLngs()[0])/1000000000);
+			//var area = 0;
+			//console.log(a);
+			//Etykiety mapy
+			if (i==19){
+				layer.bindTooltip((label_Okregi_0_eval_expression_KO(context) !== null?String('<div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*12 + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression_KO(context) )+/*'<br>' +i+ */'</div>':''), {pane: 'label21', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+			else if (i==18){
+				layer.bindTooltip((label_Okregi_0_eval_expression_KO(context) !== null?String('<div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*12  + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression_KO(context) )+/*'<br>' +i+ */'</div>':''), {pane: 'labels', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+			else{
+				layer.bindTooltip((label_Okregi_0_eval_expression_KO(context) !== null?String('<br><div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*16  + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression_KO(context) )/*+'<br>' +area*/+ '</div>':''), {pane: 'labels', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();
+				//console.log(label_Okregi_0_eval_expression_KO(context));
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+            
+        });
+		
+		
+		    //setBounds();
+        var i = 0;
+		var a = map.getZoom();
+		//var area = 0;
+        layer_Okregi_TD.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+			var area = Math.floor(L.GeometryUtil.geodesicArea(layer.getLatLngs()[0])/1000000000);
+			//var area = 0;
+			//console.log(a);
+			//Etykiety mapy
+			if (i==19){
+				layer.bindTooltip((label_Okregi_0_eval_expression_TD(context) !== null?String('<div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*12 + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression_TD(context) )+/*'<br>' +i+ */'</div>':''), {pane: 'label21', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+			else if (i==18){
+				layer.bindTooltip((label_Okregi_0_eval_expression_TD(context) !== null?String('<div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*12  + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression_TD(context) )+/*'<br>' +i+ */'</div>':''), {pane: 'labels', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+			else{
+				layer.bindTooltip((label_Okregi_0_eval_expression_TD(context) !== null?String('<br><div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*16  + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression_TD(context) )/*+'<br>' +area*/+ '</div>':''), {pane: 'labels', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();
+				//console.log(label_Okregi_0_eval_expression_TD(context));
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+            
+        });
+		
+		  //setBounds();
+        var i = 0;
+		var a = map.getZoom();
+		//var area = 0;
+        layer_Okregi_Lewica.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+			var area = Math.floor(L.GeometryUtil.geodesicArea(layer.getLatLngs()[0])/1000000000);
+			//var area = 0;
+			//console.log(a);
+			//Etykiety mapy
+			if (i==19){
+				layer.bindTooltip((label_Okregi_0_eval_expression_Lewica(context) !== null?String('<div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*12 + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression_Lewica(context) )+/*'<br>' +i+ */'</div>':''), {pane: 'label21', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+			else if (i==18){
+				layer.bindTooltip((label_Okregi_0_eval_expression_Lewica(context) !== null?String('<div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*12  + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression_Lewica(context) )+/*'<br>' +i+ */'</div>':''), {pane: 'labels', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+			else{
+				layer.bindTooltip((label_Okregi_0_eval_expression_Lewica(context) !== null?String('<br><div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*16  + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression_Lewica(context) )/*+'<br>' +area*/+ '</div>':''), {pane: 'labels', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();
+				//console.log(label_Okregi_0_eval_expression_Lewica(context));
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+            
+        });
+		
+		  //setBounds();
+        var i = 0;
+		var a = map.getZoom();
+		//var area = 0;
+        layer_Okregi_Konfederacja.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+			var area = Math.floor(L.GeometryUtil.geodesicArea(layer.getLatLngs()[0])/1000000000);
+			//var area = 0;
+			//console.log(a);
+			//Etykiety mapy
+			if (i==19){
+				layer.bindTooltip((label_Okregi_0_eval_expression_Konfederacja(context) !== null?String('<div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*12 + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression_Konfederacja(context) )+/*'<br>' +i+ */'</div>':''), {pane: 'label21', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+			else if (i==18){
+				layer.bindTooltip((label_Okregi_0_eval_expression_Konfederacja(context) !== null?String('<div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*12  + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression_Konfederacja(context) )+/*'<br>' +i+ */'</div>':''), {pane: 'labels', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+			else{
+				layer.bindTooltip((label_Okregi_0_eval_expression_Konfederacja(context) !== null?String('<br><div class = "tooltip" style="font-size: ' + Math.cbrt((area+4)/4)*16  + 'pt; line-height: 1;color: #ffffff; font-weight: bold; -webkit-text-stroke: 0px black; text-shadow: rgb(40, 40, 40) 2px 0px 0px, rgb(40, 40, 40) 0.533333px 0.833333px 0px, rgb(40, 40, 40) -0.416667px 0.916667px 0px, rgb(40, 40, 40) -0.983333px 0.133333px 0px, rgb(40, 40, 40) -0.65px -0.75px 0px, rgb(40, 40, 40) 0.283333px -0.966667px 0px, rgb(40, 40, 40) 0.966667px -0.283333px 0px;">' + label_Okregi_0_eval_expression_Konfederacja(context) )/*+'<br>' +area*/+ '</div>':''), {pane: 'labels', permanent: true, offset: [0, 0], className: 'css_Okregi_0', direction:"center"}).openTooltip();
+				//console.log(label_Okregi_0_eval_expression_Konfederacja(context));
+				labels.push(layer);
+				totalMarkers += 1;
+				layer.added = true;
+				addLabel(layer, i);
+				i++;
+			}
+            
+        });
+		
+		var baseMaps = {
+			/*'<img src="legend/Granicewojewdztw_2.png" /> Granice województw': Wojewod,*/
+			'<img src="legend/PiS.png" alt ="PiS"  class="Logo"/> KOMITET WYBORCZY PRAWO I SPRAWIEDLIWOŚĆ': layer_Okregi_0,
+			'<img src="legend/KO.png" alt="KO"   class="Logo"/> KOALICYJNY KOMITET WYBORCZY KOALICJA OBYWATELSKA PO .N IPL ZIELONI': layer_Okregi_KO,
+			'<img src="legend/TD.jpeg" alt="Trzecia Droga"   class="Logo"/> KOALICYJNY KOMITET WYBORCZY TRZECIA DROGA POLSKA 2050 SZYMONA HOŁOWNI - POLSKIE STRONNICTWO LUDOWE': layer_Okregi_TD,
+			'<img src="legend/Lewica.jpg" alt="Lewica"   class="Logo"/> KOMITET WYBORCZY NOWA LEWICA': layer_Okregi_Lewica,
+			'<img src="legend/Konfederacja.jpg" alt="Konfederacja"   class="Logo"/> KOMITET WYBORCZY KONFEDERACJA WOLNOŚĆ I NIEPODLEGŁOŚĆ': layer_Okregi_Konfederacja
+		};
+		
+		var bestMaps = {};
+		
+		/*L.control.layers(baseMaps,null,{collapsed:false}).addTo(map);*/
+		
+		map.removeLayer(layer_Okregi_KO);
+		map.removeLayer(layer_Okregi_TD);
+		map.removeLayer(layer_Okregi_Lewica);
+		map.removeLayer(layer_Okregi_Konfederacja);
+		
+		layer_Okregi_0.eachLayer(function(layer) {
+            var p = layer.feature.properties;
+			p.index =[];
+			for (i=0; i<24; i++){
+				p.index.push(p['PnP_M'+Number(i+1)]);
+			}
+			layers[p.jpt_kod_je] = layer;
+        });
+		console.log(layer_Okregi_0);
+			/*'<img src="legend/KO.png" alt="KO"   class="Logo"/> KOALICYJNY KOMITET WYBORCZY KOALICJA OBYWATELSKA PO .N IPL ZIELONI': layer_Okregi_KO,
+			'<img src="legend/Lewica.jpg" alt="Lewica"   class="Logo"/> KOMITET WYBORCZY SOJUSZ LEWICY DEMOKRATYCZNEJ': layer_Okregi_TD,
+			'<img src="legend/PSL.png" alt="PSL"   class="Logo"/> KOMITET WYBORCZY POLSKIE STRONNICTWO LUDOWE': layer_Okregi_Lewica,
+			'<img src="legend/Konfederacja.jpg" alt="Konfederacja"   class="Logo"/> KOMITET WYBORCZY KONFEDERACJA WOLNOŚĆ I NIEPODLEGŁOŚĆ': layer_Okregi_Konfederacja*/
+		
+		var layerControl = L.control.layers(baseMaps,null,{collapsed:true}).addTo(map);
+		var layerControl1 = L.control.layers(bestMaps,null,{collapsed:true}).addTo(map);
+		/*var layerControl2 = L.control.layers(bestMaps,null,{collapsed:true}).addTo(map);*/
+		var KO_proc = 30.7;
+		$('.leaflet-control-layers-toggle:eq( 0 )').html('<div style="background-image: linear-gradient(to right, #c4d3ae 0%, #b8e186 51%, #c4d3ae 100%); border-radius: 8px;box-shadow: 0 0 20px #888; border: 2px solid #fff; text-shadow: -1px 0 #b8e186, 0 1px #b8e186, 1px 0 #b8e186, 0 -1px #b8e186;">Wybierz komitet wyborczy...</div>');
+		$('.leaflet-control-layers-toggle:eq( 1 )').html('<div style="background-image: linear-gradient(to right, #e6f5d0 0%, #f7f7f7 51%, #e6f5d0 100%); border-radius: 8px; box-shadow: 0 0 20px #888; text-shadow: -1px 0 #fff, 0 1px #fff, 1px 0 #fff, 0 -1px #fff; border: 2px solid #fff;">Podsumowanie...</div>');
+		/*$('.leaflet-right:eq( 0 )').append('<div style="background-color: #b8e186;"></div>');*/
+		//leaflet-control-layers-list
+		$('.leaflet-container .leaflet-control-attribution').css("background", "rgba(192, 255, 192, 0.5)");
+		$('.leaflet-control-layers-list:eq( 0 )').append('<div style="margin:  32px 0px 0px 0px;"></div>');
+		$('.leaflet-control-layers-list:eq( 1 )').html('<div style="margin:  8px 0px 0px 0px;  z-index: 850; width: 480px; background-image: linear-gradient(to right, #e6f5d0 0%, #f7f7f7 51%, #e6f5d0 100%); "><h3 style="text-align: left; margin-left: 16px; line-height: 1.25;">Wybory do Sejmu i Senatu Rzeczypospolitej Polskiej w&nbsp;dniu&nbsp;15&nbsp;października&nbsp;2023&nbsp;r.</h3><p style="text-align: left; margin-left: 16px; margin-top: 24px; font-weight: normal; line-height: 1.6; margin-bottom: 16px;">W Wyborach do Sejmu RP oddano <b>21 596 674</b> głosów ważnych.<br>W <b>41</b> sejmowych okręgach obsadzono łącznie <b>460</b> mandatów posłów.</p>\
+			<table class="tabela1" style="margin-left: auto; margin-right: auto; width: 448px; border-color: #276419; margin-top: -8px; z-index: 864;">\
+				<thead>\
+					<tr>\
+						<th>Logo komitetu</th>\
+						<th>Nazwa komitetu</th>\
+						<th>Poparcie</th>\
+						<th>Liczba mandatów</th>\
+						<th>Liczba okręgów z&nbsp;mandatem</th>\
+					</tr>\
+				</thead>\
+				<tbody>\
+					<tr>\
+						<td><img src="legend/PiS.png" alt ="PiS"  class="Logo"/></td>\
+						<td class = "kName">KOMITET WYBORCZY PRAWO I&nbsp;SPRAWIEDLIWOŚĆ</td>\
+						<td class="Last_td">'+lengthToBlank3(7640854)+numberWithSpaces(7640854) +'<br>' +(lengthToBlank2(35.38))+'('+'<span class = "td_down" >'+Autolinker.link(String(35.38))+'%</span>)</td>\
+						<td class="Last_tdn">194</td>\
+						<td class="Last_tdn">41</td>\
+					</tr>\
+					<tr>\
+						<td><img src="legend/KO.png" alt ="KO"  class="Logo"/></td>\
+						<td class = "kName">KOALICYJNY KOMITET WYBORCZY KOALICJA OBYWATELSKA PO .N IPL ZIELONI</td>\
+						<td class="Last_td">'+lengthToBlank3(6629402)+numberWithSpaces(6629402) +'<br>' +(lengthToBlank2(30.70))+'('+'<span class = "td_down" >'+Autolinker.link(String(KO_proc.toFixed(2)))+'%</span>)</td>\
+						<td class="Last_tdn">157</td>\
+						<td class="Last_tdn">41</td>\
+					</tr>\
+					<tr>\
+						<td><img src="legend/TD.jpeg" alt ="TD"  class="Logo"/></td>\
+						<td class = "kName">KOALICYJNY KOMITET WYBORCZY TRZECIA DROGA POLSKA 2050 SZYMONA HOŁOWNI - POLSKIE STRONNICTWO LUDOWE</td>\
+						<td class="Last_td">'+lengthToBlank3(3110670)+numberWithSpaces(3110670) +'<br>' +(lengthToBlank2(14.40))+'('+'<span class = "td_down" >'+Autolinker.link((14.40).toFixed(2))+'%</span>)</td>\
+						<td class="Last_tdn">65</td>\
+						<td class="Last_tdn">41</td>\
+					</tr>\
+					<tr>\
+						<td><img src="legend/Lewica.jpg" alt ="Lewica"  class="Logo"/></td>\
+						<td class = "kName">KOMITET WYBORCZY NOWA LEWICA</td>\
+						<td class="Last_td">'+lengthToBlank3(1859018)+numberWithSpaces(1859018)+'<br>' +(lengthToBlank2(8.61))+'('+'<span class = "td_down" >'+Autolinker.link(String(8.61))+'%</span>)</td>\
+						<td class="Last_tdn">26</td>\
+						<td class="Last_tdn">23</td>\
+					</tr>\
+					<tr>\
+						<td><img src="legend/Konfederacja.jpg" alt ="Konfederacja"  class="Logo"/></td>\
+						<td class = "kName">KOMITET WYBORCZY KONFEDERACJA WOLNOŚĆ I&nbsp;NIEPODLEGŁOŚĆ</td>\
+						<td class="Last_td">'+lengthToBlank3(1547364)+numberWithSpaces(1547364) +'<br>' +(lengthToBlank2(7.16))+'('+'<span class = "td_down" >'+Autolinker.link(String(7.16))+'%</span>)</td>\
+						<td class="Last_tdn">18</td>\
+						<td class="Last_tdn">18</td>\
+					</tr>\
+				</tbody>\
+			</table>\
+		</div>');
+
+	
+		
+		console.log(map.getPane('label21'));
+		/*var paragraphs = document.querySelectorAll('div'), i;
+		for (i = 0; i < paragraphs.length; ++i) {
+		  paragraphs[i].style.color = "green";
+		  console.log(paragraphs[i].nodeName);
+		}*/
+		
+		L.Control.Watermark = L.Control.extend({
+			onAdd: function(map) {
+				var img = L.DomUtil.create('img');
+
+				img.src = './images/1.png';
+				img.style.width = '200px';
+				img.style.opacity= '0.9';
+				//margin-bottom: -60px;
+				img.style.margin= '0px 0px -32px 0px';
+
+				return img;
+			},
+
+			onRemove: function(map) {
+				// Nothing to do here
+			}
+		});
+
+		L.control.watermark = function(opts) {
+			return new L.Control.Watermark(opts);
+		}
+
+		L.control.watermark({ position: 'bottomleft' }).addTo(map);
+		$('.leaflet-bottom:eq(0)').css('filter', 'drop-shadow(5px 5px 10px #ccc)');
+		
+		/*$('.leaflet-bottom:eq( 1 )').append('<div style="clear: both;"></div>');*/
+				
+		var populationLegend = L.control({position: 'bottomright'});
+		var populationChangeLegend = L.control({position: 'bottomright'});
+
+		populationLegend.onAdd = function (map) {
+		var div = L.DomUtil.create('div', 'info legend');
+			div.innerHTML +=
+			'<div style="margin:  8px 0px 0px 0px; font-family: \'Roboto\', sans-serif ;"><div style = "text-align:center; font-size: 16px; margin-bottom: 16px; font-weight: 900">Relatywna bliskość powiększenia/pomniejszenia liczby zdobytych mandatów:</div><div style = "float:left; font-size: 11px; font-weight: bold; height: 64px; line-height: 56px; padding: 4px;">Blisko utraty mandatu</div><div style = "float:left; opacity: 1.0;"><img src="legend/RdYlBu.png" alt ="Legenda"  style="width:312px; height: 64px"/></div><div style = "float:left; font-size: 11px; height: 64px; vertical-align: middle; padding:4px; line-height: 56px;"><b>Blisko zdobycia mandatu</b></div><div style = "clear:both;"></div><div style = "margin-left:auto; margin-right:auto; margin-top: 4px; font-size: 11px; line-height: 0px; padding-bottom: 16px; padding-left: 208px;"><b>Klarowna sytuacja w okręgu</b></div></div>';
+		return div;
+		};
+
+		populationChangeLegend.onAdd = function (map) {
+		var div = L.DomUtil.create('div', 'info legend');
+			div.innerHTML +=
+			'<img src="change_legend.png" alt="legendy" width="134" height="147">';
+		return div;
+		};
+
+		// Add this one (only) for now, as the Population layer is on by default
+		populationLegend.addTo(map);
+
+		 var searchControl = new L.Control.Search({
+			layer: layer_Okregi_0,
+			propertyName: 'Kandydaci',
+			marker: false,
+			collapsed: true,
+			initial: false,
+			textPlaceholder: 'Wpisz nazwisko osoby kandydującej...',
+			buildTip: function(text, val) {
+					  var p = val.layer.feature.properties;
+					  var tip = p.Kandydaci;
+					  var vip = p.jpt_kod_je;
+					  return '<a href="#" class=""><div style="width: auto; height: auto;"><b>Okręg wyborczy nr  ' +  vip + '</b><br>Kolejność obsadzania mandatów:<br>'+tip+'</div></a>';
+			},
+			moveToLocation: function(latlng, title, map) {
+				console.log("search");
+				map.fitBounds( latlng.layer.getBounds() , {paddingBottomRight: [40, 0], paddingTopLeft: [40, 0], animate: true, duration: 0.4});
+				var zoom = map.getBoundsZoom(latlng.layer.getBounds());
+				map.setView(latlng, zoom); // access the zoom
+			}
+		});
+		searchControl.on('search:locationfound', function(e) {
+		
+			
+			map.closePopup();
+			current_KOD = e.layer.feature.properties.jpt_kod_je;
+			//map.removeLayer(this._markerSearch)
+			e.layer.setStyle({color: 'rgba(255,255,255,0.5)', weight: '8', lineCap: 'round', lineJoin: 'round',fillColor: 'rgba(255,0,0,0.9)',});
+			//e.layer.bringToFront();
+			//map.getPane('labels').style.display = 'inline-block';
+			//if(e.layer._popup) e.layer.openPopup();
+			setTimeout(function () {
+				e.layer.openPopup();
+			},800);
+			searchControl._input.value = '';
+			searchControl._input.size = searchControl._inputMinSize;
+			//https://bdot10k.geoportal.gov.pl/#showLayersList&1618582473368
+		}).on('search:collapsed', function(e) {
+
+			layer_Okregi_0.eachLayer(function(layer) {	//restore feature color
+				layer_Okregi_0.resetStyle(layer);
+			});	
+		});
+		map.addControl( searchControl );
+		
+		function searchLayer(l_layer){
+			var kand_text = [];
+			searchControl._layer = l_layer;
+			l_layer.eachLayer(function (layer) {
+				for (i=1;i<24;i++){
+					kand_text.push('<div class = "sCandidate" style = "width: auto; float: left;">' + i + '.&#8199;' + layer.feature.properties["PnP_M"+i] + '&#8199;</div><div style = "float: left;"><img src="images/'+layer.feature.properties['Mandaty_kol_P' + i]+'.jpg" alt ="I'+i+'"  class="Logo5"></div><div style = "clear: both;"></div>');
+					if (i==layer.feature.properties['Sejm_2023_L_mandat']){
+						kand_text.push('<div style = "width: auto;"><hr style="height: 1px; background-color: #ccc; border: none;"/></div>');
+					}
+				}
+				kand_text.push('<div style = "width: auto; float: left;">' + '24.&#8199;' + layer.feature.properties["PnP_M24"] + '</div><div style = "float: left;"><img src="images/'+layer.feature.properties['Mandaty_kol_P24']+'.jpg" alt ="I24"  class="Logo5"></div><div style = "clear: both;"></div>');
+				
+				layer.feature.properties.Kandydaci = kand_text.join("");
+				kand_text = [];
+				layers[layer.feature.properties.jpt_kod_je] = layer;
+			});
+			searchControl.on('search:collapsed', function(e) {
+
+			l_layer.eachLayer(function(layer) {	//restore feature color
+				l_layer.resetStyle(layer);
+			});	
+		});
+		}
+		searchLayer(layer_Okregi_0);
+		
+		map.on('popupopen', function(e) {
+			/*console.log("Przed: "+sc);
+			sc = sc_temp;
+			console.log("Po: "+sc);*/
+			current_KOD = e.popup._source.feature.properties.jpt_kod_je;
+			setTimeout(function () {
+				if (document.readyState !== 'loading') {
+					console.log('document is already ready, just execute code here');
+					myInitCode();
+				} else {
+					document.addEventListener('DOMContentLoaded', function () {
+						console.log('document was not ready, place code here');
+						myInitCode();
+					});
+				}
+				function myInitCode(){
+					var els = document.getElementsByClassName('tooltipc');
+					document.getElementById('divScrolled').onscroll = function (ev) {
+						sc = document.getElementById('divScrolled').scrollTop;
+						Array.prototype.forEach.call(els, function(el) {
+							el.style.bottom = (sc+44)+"px";
+						});
+					}
+					sc_temp = sc;
+				}
+			}, 500);
+			if (document.readyState !== 'loading') {
+				console.log('document is already ready, just execute code here');
+				myInitCode();
+			} else {
+				document.addEventListener('DOMContentLoaded', function () {
+					console.log('document was not ready, place code here');
+					myInitCode();
+				});
+			}
+			function myInitCode(){
+				var els = document.getElementsByClassName('tooltipc');
+				document.getElementById('divScrolled').onscroll = function (ev) {
+					sc = document.getElementById('divScrolled').scrollTop;
+					Array.prototype.forEach.call(els, function(el) {
+						el.style.bottom = (sc+44)+"px";
+					});
+				}
+				sc_temp = sc;
+			}
+			if (layers[current_KOD].isPopupOpen()){
+				setTimeout(function () {
+				
+					var px = map.project(e.target._popup._latlng); // find the pixel location on the map where the popup anchor is
+					px.y -= e.target._popup._container.clientHeight/2+16; // find the height of the popup container, divide by 2, subtract from the Y axis of marker location
+					px.x += 192;
+					
+					setTimeout(function () {
+						map.panTo(map.unproject(px),{animate: true, duration: 0.8}); // pan to new center
+					}, 400);
+					
+				}, 400);
+			}
+		});
+		
+		map.on('popupclose', function(e) {
+		});
+		map.on('baselayerchange', function (eventLayer) {
+			layers = [];
+			console.log(eventLayer.name);
+			searchControl._hideTooltip();
+			searchControl.cancel();
+			// Switch to the Population legend...
+			if (eventLayer.name === '<img src="legend/PiS.png" alt ="PiS"  class="Logo"/> KOMITET WYBORCZY PRAWO I SPRAWIEDLIWOŚĆ') {
+				$('.leaflet-bottom:eq( 0 )').html('<img class="leaflet-control" src="./images/1.png" style="width: 200px; opacity: 0.9; margin-bottom: -32px;">');
+				/*this.removeControl(populationChangeLegend);
+				populationLegend.addTo(this);*/
+				searchLayer(layer_Okregi_0);
+			} else if (eventLayer.name === '<img src="legend/KO.png" alt="KO"   class="Logo"/> KOALICYJNY KOMITET WYBORCZY KOALICJA OBYWATELSKA PO .N IPL ZIELONI') {
+				$('.leaflet-bottom:eq( 0 )').html('<img class="leaflet-control" src="./images/2.png" style="width: 200px; opacity: 0.9; margin-bottom: 0px;">');
+				searchLayer(layer_Okregi_KO);
+			} else if (eventLayer.name === '<img src="legend/TD.jpeg" alt="Trzecia Droga"   class="Logo"/> KOALICYJNY KOMITET WYBORCZY TRZECIA DROGA POLSKA 2050 SZYMONA HOŁOWNI - POLSKIE STRONNICTWO LUDOWE') {
+				$('.leaflet-bottom:eq( 0 )').html('<img class="leaflet-control" src="./images/3.png" style="width: 200px; opacity: 0.9; margin-bottom: 12px;">');
+				searchLayer(layer_Okregi_TD);
+			} else if (eventLayer.name === '<img src="legend/Lewica.jpg" alt="Lewica"   class="Logo"/> KOMITET WYBORCZY NOWA LEWICA') {
+				$('.leaflet-bottom:eq( 0 )').html('<img class="leaflet-control" src="./images/4.png" style="width: 200px; opacity: 0.9; margin-bottom: 12px;">');
+				searchLayer(layer_Okregi_Lewica);
+			} else{ // Or switch to the Population Change legend...
+				$('.leaflet-bottom:eq( 0 )').html('<img class="leaflet-control" src="./images/5.png" style="width: 200px; opacity: 0.9; margin-bottom: 4px;">');
+				searchLayer(layer_Okregi_Konfederacja);
+				/*this.removeControl(populationLegend);
+				populationChangeLegend.addTo(this);*/
+			}
+		});
+		
+        resetLabels([layer_Okregi_0, layer_Okregi_KO, layer_Okregi_TD, layer_Okregi_Lewica, layer_Okregi_Konfederacja]);
+		//resetLabels([layer_Okregi_KO]);
+        map.on("zoomend", function(){
+			var zoom = map.getZoom();
+			/*var offset = 16*Math.pow(2,zoom-6);*/
+			var offset = -16*Math.pow(2,zoom-6);
+            resetLabels([layer_Okregi_0]);
+			resetLabels([layer_Okregi_KO]);
+			resetLabels([layer_Okregi_TD]);
+			resetLabels([layer_Okregi_Lewica]);
+			resetLabels([layer_Okregi_Konfederacja]);
+			map.getPane('label21').style.left = offset+'px';
+			//map.getPane('label21').style.outline = '5px solid red';
+			//console.log(map.getPane('label21'));
+        });
+        map.on("layeradd", function(){
+            resetLabels([layer_Okregi_0]);
+			resetLabels([layer_Okregi_KO]);
+			resetLabels([layer_Okregi_TD]);
+			resetLabels([layer_Okregi_Lewica]);
+			resetLabels([layer_Okregi_Konfederacja]);
+        });
+        map.on("layerremove", function(){
+            resetLabels([layer_Okregi_0]);
+			resetLabels([layer_Okregi_KO]);
+			resetLabels([layer_Okregi_TD]);
+			resetLabels([layer_Okregi_Lewica]);
+			resetLabels([layer_Okregi_Konfederacja]);
+        });
+		//map.on('zoomend', function());
+		//show_hide_labels();
+		</script>
+    </body>
+</html>
