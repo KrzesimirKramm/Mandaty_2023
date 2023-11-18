@@ -534,7 +534,7 @@
 						</tr>'
 						:'')+
                 '</tbody></table>\
-				<p style = "padding 16px; margin: 16px 16px 8px 16px; color: #444;">Źródło: <i>Opracowanie własne na podstawie danych PKW.</i></p>\
+				<p style = "padding 16px; margin: 16px 16px 8px 16px; color: #444;">Źródło: <i>Opracowanie własne na podstawie danych PKW. Wizerunki posłanek oraz posłów pochodzą ze strony <a href="https://www.sejm.gov.pl/Sejm10.nsf/poslowie.xsp?type=A" target="_blank" style="text-decoration: none;">www.sejm.gov.pl</a>.</i></p>\
 				<p style = "padding 16px; margin: 8px 16px 8px 16px; color: #444; font-size: 10px;">UWAGA!: <i>Nie zaimplementowano tutaj mechanizmu wyłaniania zwycięzcy w przypadku remisu (sytuacji, w której na skutek hipotetycznego przepływu wyborców ostatni biorący i pierwszy niebiorący iloraz stają się jednakowe), więc rzeczywista liczba głosów potrzebnych do zdobycia/utraty mandatu może w niektórych przypadkach różnić się o 1.</i></p>\
 				</div>'+popupList;
             layer.bindPopup(popupContent, {maxHeight: 800});
@@ -756,7 +756,7 @@
 		//map.addLayer(osm);
        var hash = new L.Hash(map);
         map.attributionControl.addAttribution('<a href="https://github.com/tomchadwin/qgis2web" target="_blank">qgis2web</a>');
-		map.attributionControl.addAttribution('<a href="http://www.sejm.gov.pl/" target="_blank">Aktualni posłowie</a>');
+		map.attributionControl.addAttribution('<a href="http://www.sejm.gov.pl/Sejm10.nsf/poslowie.xsp?type=A" target="_blank">Aktualni posłowie</a>');
 		
 		map.attributionControl.addAttribution('<a href="https://wybory.gov.pl/sejmsenat2023/" target="_blank">Wybory do Sejmu i Senatu Rzeczypospolitej Polskiej 2023</a>');
 		
